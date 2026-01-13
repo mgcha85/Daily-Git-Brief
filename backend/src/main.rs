@@ -11,10 +11,12 @@ use axum::{
 };
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tower_http::cors::{Any, CorsLayer};
+use tokio::sync::broadcast;
+use std::sync::atomic::AtomicBool;
 use tracing::{info, error};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::api::{AppState, get_trends, get_daily_languages, get_weekly_languages, trigger_collect, health_check};
+use crate::api::{AppState, get_trends, get_daily_languages, get_weekly_languages, trigger_collect, sse_progress, health_check};
 use crate::config::Config;
 use crate::db::Database;
 use crate::services::DataCollector;
@@ -56,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
             Box::pin(async move {
                 info!("Scheduled data collection starting");
                 let collector = DataCollector::new(&config, db);
-                match collector.collect().await {
+                match collector.collect(None).await {
                     Ok(count) => info!("Scheduled collection complete: {} repos", count),
                     Err(e) => error!("Scheduled collection failed: {}", e),
                 }
@@ -68,7 +70,13 @@ async fn main() -> anyhow::Result<()> {
     info!("Scheduler started (daily at UTC 00:00)");
 
     // Create app state
-    let state = Arc::new(AppState { db, config: config.clone() });
+    let (tx, _rx) = broadcast::channel(100);
+    let state = Arc::new(AppState { 
+        db, 
+        config: config.clone(),
+        progress_tx: tx,
+        is_collecting: Arc::new(AtomicBool::new(false)),
+    });
 
     // Build router
     let cors = CorsLayer::new()
@@ -82,6 +90,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/languages/daily", get(get_daily_languages))
         .route("/api/languages/weekly", get(get_weekly_languages))
         .route("/api/collect", post(trigger_collect))
+        .route("/api/collect/progress", get(sse_progress))
         .layer(cors)
         .with_state(state);
 

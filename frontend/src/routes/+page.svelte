@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { onMount, onDestroy } from "svelte";
 
     interface LanguageInfo {
         language: string;
@@ -31,6 +31,10 @@
     let error: string | null = null;
     let selectedDate = new Date().toISOString().split("T")[0];
     let collecting = false;
+
+    // SSE Progress State
+    let progress = { message: "", current: 0, total: 0 };
+    let eventSource: EventSource | null = null;
 
     const languageColors: Record<string, string> = {
         TypeScript: "#3178c6",
@@ -73,23 +77,61 @@
     }
 
     async function triggerCollection() {
+        if (collecting && eventSource) return;
+
         collecting = true;
+        progress = { message: "Initializing...", current: 0, total: 0 };
+
         try {
             const response = await fetch("/api/collect", { method: "POST" });
+
+            if (response.status === 409) {
+                startListening(); // Already running
+                return;
+            }
+
             const data = await response.json();
             if (data.success) {
-                alert(
-                    "데이터 수집이 시작되었습니다. 완료까지 수 분이 소요될 수 있습니다. 잠시 후 새로고침 해주세요.",
-                );
-                // Do not re-fetch immediately as it takes time
+                startListening();
             } else {
                 alert("Collection failed: " + data.error);
+                collecting = false;
             }
         } catch (e) {
             alert("Failed to trigger collection");
-        } finally {
             collecting = false;
         }
+    }
+
+    function startListening() {
+        if (eventSource) eventSource.close();
+
+        eventSource = new EventSource("/api/collect/progress");
+
+        eventSource.onmessage = (event) => {
+            try {
+                const status = JSON.parse(event.data);
+                progress = {
+                    message: status.message,
+                    current: status.current_count,
+                    total: status.total_count,
+                };
+
+                if (!status.is_running) {
+                    collecting = false;
+                    eventSource?.close();
+                    eventSource = null;
+                    fetchTrends();
+                    alert("Collection Completed!");
+                }
+            } catch (e) {
+                console.error("Failed to parse SSE message", e);
+            }
+        };
+
+        eventSource.onerror = (err) => {
+            console.error("SSE Error", err);
+        };
     }
 
     function formatNumber(num: number | null): string {
@@ -103,6 +145,10 @@
     }
 
     onMount(fetchTrends);
+
+    onDestroy(() => {
+        if (eventSource) eventSource.close();
+    });
 </script>
 
 <svelte:head>
@@ -119,23 +165,41 @@
     </section>
 
     <section class="controls fade-in">
-        <div class="date-picker">
-            <label for="date">날짜 선택:</label>
-            <input
-                type="date"
-                id="date"
-                bind:value={selectedDate}
-                on:change={fetchTrends}
-                max={new Date().toISOString().split("T")[0]}
-            />
+        <div class="controls-top">
+            <div class="date-picker">
+                <label for="date">날짜 선택:</label>
+                <input
+                    type="date"
+                    id="date"
+                    bind:value={selectedDate}
+                    on:change={fetchTrends}
+                    max={new Date().toISOString().split("T")[0]}
+                />
+            </div>
+            <button
+                class="btn btn-primary"
+                on:click={triggerCollection}
+                disabled={collecting}
+            >
+                {collecting ? "수집 중..." : "📥 데이터 수집"}
+            </button>
         </div>
-        <button
-            class="btn btn-primary"
-            on:click={triggerCollection}
-            disabled={collecting}
-        >
-            {collecting ? "수집 중..." : "📥 데이터 수집"}
-        </button>
+
+        {#if collecting}
+            <div class="progress-container fade-in">
+                <div class="progress-bar">
+                    <div
+                        class="fill"
+                        style="width: {progress.total > 0
+                            ? (progress.current / progress.total) * 100
+                            : 0}%"
+                    ></div>
+                </div>
+                <p class="progress-text">
+                    {progress.message} ({progress.current}/{progress.total})
+                </p>
+            </div>
+        {/if}
     </section>
 
     {#if loading}
@@ -257,13 +321,20 @@
 
     .controls {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
+        flex-direction: column;
+        gap: var(--space-4);
         margin-bottom: var(--space-6);
         padding: var(--space-4);
         background: var(--color-bg-secondary);
         border-radius: var(--radius-lg);
         border: 1px solid var(--color-border);
+    }
+
+    .controls-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
     }
 
     .date-picker {
@@ -387,5 +458,26 @@
         color: var(--color-text-secondary);
         font-size: var(--font-size-sm);
         max-width: 350px;
+    }
+
+    .progress-container {
+        width: 100%;
+    }
+    .progress-bar {
+        height: 8px;
+        background: var(--color-bg-tertiary);
+        border-radius: var(--radius-full);
+        overflow: hidden;
+        margin-bottom: var(--space-2);
+    }
+    .fill {
+        height: 100%;
+        background: var(--color-accent-blue);
+        transition: width 0.3s ease;
+    }
+    .progress-text {
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
+        text-align: right;
     }
 </style>

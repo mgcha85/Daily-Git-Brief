@@ -1,12 +1,15 @@
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, sse::{Event, KeepAlive, Sse}},
     Json,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use tracing::{info, error};
+use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::StreamExt;
+use futures::stream::Stream;
 
 use crate::db::Database;
 use crate::config::Config;
@@ -16,6 +19,8 @@ use crate::services::DataCollector;
 pub struct AppState {
     pub db: Database,
     pub config: Config,
+    pub progress_tx: tokio::sync::broadcast::Sender<crate::models::CollectionStatus>,
+    pub is_collecting: Arc<AtomicBool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -149,15 +154,33 @@ pub async fn get_weekly_languages(
 pub async fn trigger_collect(
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
+    // Check if already running
+    if state.is_collecting.load(Ordering::SeqCst) {
+        return (
+            StatusCode::CONFLICT,
+            Json(ApiResponse {
+                success: false,
+                data: None,
+                error: Some("Collection already in progress".to_string()),
+            }),
+        ).into_response();
+    }
+
     info!("Manual data collection triggered (async)");
+    state.is_collecting.store(true, Ordering::SeqCst);
     
+    let is_collecting = state.is_collecting.clone();
+    let tx = state.progress_tx.clone();
+
     // Spawn background task
     tokio::spawn(async move {
         let collector = DataCollector::new(&state.config, state.db.clone());
-        match collector.collect().await {
+        match collector.collect(Some(tx)).await {
             Ok(count) => info!("Background collection complete: {} repos", count),
             Err(e) => error!("Background collection failed: {}", e),
         }
+        // Reset flag
+        is_collecting.store(false, Ordering::SeqCst);
     });
 
     // Return immediate response with 202 Accepted
@@ -166,12 +189,32 @@ pub async fn trigger_collect(
         Json(ApiResponse {
             success: true,
             data: Some(CollectResponse {
-                message: "Data collection started in background. Please check back later.".to_string(),
+                message: "Data collection started in background. Connect to /api/collect/progress for updates.".to_string(),
                 collected_count: 0,
             }),
             error: None,
         }),
-    )
+    ).into_response()
+}
+
+// GET /api/collect/progress
+pub async fn sse_progress(
+    State(state): State<Arc<AppState>>,
+) -> Sse<impl Stream<Item = Result<Event, axum::Error>>> {
+    let rx = state.progress_tx.subscribe();
+    
+    let stream = BroadcastStream::new(rx).map(|msg| {
+        match msg {
+            Ok(status) => {
+                let json = serde_json::to_string(&status).unwrap_or_default();
+                Event::default().data(json)
+            }
+            // If channel lag or other error, we can send a comment or ignore
+            Err(_) => Event::default().comment("keep-alive"),
+        }
+    });
+
+    Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
 // GET /health

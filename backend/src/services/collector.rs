@@ -5,8 +5,9 @@ use tracing::{info, warn};
 
 use crate::config::Config;
 use crate::db::Database;
-use crate::models::{TrendingRepo, RepoLanguage, LanguageTrend};
+use crate::models::{TrendingRepo, RepoLanguage, LanguageTrend, CollectionStatus};
 use crate::services::{OssInsightClient, GitHubClient, LlmClient};
+use tokio::sync::broadcast;
 
 pub struct DataCollector {
     oss_client: OssInsightClient,
@@ -27,13 +28,23 @@ impl DataCollector {
         }
     }
 
-    pub async fn collect(&self) -> Result<usize> {
+    pub async fn collect(&self, progress_tx: Option<broadcast::Sender<CollectionStatus>>) -> Result<usize> {
         let today = Utc::now().format("%Y-%m-%d").to_string();
         info!("Starting data collection for {}", today);
 
         // Step 1: Fetch trending repos from OSS Insight
         let oss_repos = self.oss_client.get_trending_repos().await?;
-        info!("Fetched {} repos from OSS Insight", oss_repos.len());
+        let total_repos = oss_repos.len();
+        info!("Fetched {} repos from OSS Insight", total_repos);
+
+        if let Some(tx) = &progress_tx {
+            let _ = tx.send(CollectionStatus {
+                is_running: true,
+                message: format!("Fetched {} repos from OSS Insight", total_repos),
+                current_count: 0,
+                total_count: total_repos,
+            });
+        }
 
         let mut language_stats: HashMap<String, (f64, i32)> = HashMap::new();
         let mut collected_count = 0;
@@ -45,7 +56,7 @@ impl DataCollector {
             info!("Skipping {} repos that already have summaries", skipped_count);
         }
 
-        for oss_repo in oss_repos.iter() {
+        for (i, oss_repo) in oss_repos.iter().enumerate() {
             let repo_id: i64 = oss_repo.repo_id.parse().unwrap_or(0);
             let repo_name = &oss_repo.repo_name;
 
@@ -125,6 +136,15 @@ impl DataCollector {
 
             // Rate limiting: small delay between repos
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+            if let Some(tx) = &progress_tx {
+                let _ = tx.send(CollectionStatus {
+                    is_running: true,
+                    message: format!("Processed {}", repo_name),
+                    current_count: i + 1,
+                    total_count: total_repos,
+                });
+            }
         }
 
         // Step 4: Calculate and save daily language trends (normalized)
@@ -147,6 +167,16 @@ impl DataCollector {
         }
 
         info!("Data collection complete. Collected {} repos.", collected_count);
+        
+        if let Some(tx) = &progress_tx {
+            let _ = tx.send(CollectionStatus {
+                is_running: false,
+                message: format!("Collection complete. Collected {} repos.", collected_count),
+                current_count: total_repos,
+                total_count: total_repos,
+            });
+        }
+        
         Ok(collected_count)
     }
 }

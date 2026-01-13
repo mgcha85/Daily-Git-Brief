@@ -122,3 +122,11 @@ pub struct GitHubRepoInfo {
 }
 
 pub type GitHubLanguages = std::collections::HashMap<String, u64>;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CollectionStatus {
+    pub is_running: bool,
+    pub message: String,
+    pub current_count: usize,
+    pub total_count: usize,
+}
