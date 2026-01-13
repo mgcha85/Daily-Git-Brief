@@ -151,7 +151,7 @@ jobs:
             
             # Restart services
             podman-compose down
-            podman-compose up -d
+            podman-compose up -d --no-build
             
             # Cleanup old images
             podman image prune -f
