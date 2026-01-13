@@ -78,7 +78,10 @@
             const response = await fetch("/api/collect", { method: "POST" });
             const data = await response.json();
             if (data.success) {
-                await fetchTrends();
+                alert(
+                    "데이터 수집이 시작되었습니다. 완료까지 수 분이 소요될 수 있습니다. 잠시 후 새로고침 해주세요.",
+                );
+                // Do not re-fetch immediately as it takes time
             } else {
                 alert("Collection failed: " + data.error);
             }

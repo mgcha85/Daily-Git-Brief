@@ -149,37 +149,29 @@ pub async fn get_weekly_languages(
 pub async fn trigger_collect(
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    info!("Manual data collection triggered");
+    info!("Manual data collection triggered (async)");
     
-    let collector = DataCollector::new(&state.config, state.db.clone());
-    
-    match collector.collect().await {
-        Ok(count) => {
-            info!("Collection complete: {} repos", count);
-            (
-                StatusCode::OK,
-                Json(ApiResponse {
-                    success: true,
-                    data: Some(CollectResponse {
-                        message: "Data collection completed".to_string(),
-                        collected_count: count,
-                    }),
-                    error: None,
-                }),
-            )
+    // Spawn background task
+    tokio::spawn(async move {
+        let collector = DataCollector::new(&state.config, state.db.clone());
+        match collector.collect().await {
+            Ok(count) => info!("Background collection complete: {} repos", count),
+            Err(e) => error!("Background collection failed: {}", e),
         }
-        Err(e) => {
-            error!("Collection failed: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse {
-                    success: false,
-                    data: None,
-                    error: Some(e.to_string()),
-                }),
-            )
-        }
-    }
+    });
+
+    // Return immediate response with 202 Accepted
+    (
+        StatusCode::ACCEPTED,
+        Json(ApiResponse {
+            success: true,
+            data: Some(CollectResponse {
+                message: "Data collection started in background. Please check back later.".to_string(),
+                collected_count: 0,
+            }),
+            error: None,
+        }),
+    )
 }
 
 // GET /health
