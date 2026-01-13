@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+target/
+.svelte-kit/
+
+# Build outputs
+backend/target/
+frontend/build/
+frontend/.svelte-kit/
+
+# Environment
+.env
+.env.local
+
+# Database
+data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Cargo
+**/*.rs.bk
+Cargo.lock
