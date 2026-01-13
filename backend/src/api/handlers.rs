@@ -158,7 +158,7 @@ pub async fn trigger_collect(
     if state.is_collecting.load(Ordering::SeqCst) {
         return (
             StatusCode::CONFLICT,
-            Json(ApiResponse {
+            Json(ApiResponse::<CollectResponse> {
                 success: false,
                 data: None,
                 error: Some("Collection already in progress".to_string()),
@@ -207,10 +207,10 @@ pub async fn sse_progress(
         match msg {
             Ok(status) => {
                 let json = serde_json::to_string(&status).unwrap_or_default();
-                Event::default().data(json)
+                Ok(Event::default().data(json))
             }
             // If channel lag or other error, we can send a comment or ignore
-            Err(_) => Event::default().comment("keep-alive"),
+            Err(_) => Ok(Event::default().comment("keep-alive")),
         }
     });
 

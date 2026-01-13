@@ -1,6 +1,6 @@
 use anyhow::Result;
 use reqwest::Client;
-use std::collections::HashMap;
+
 use tracing::{info, warn};
 
 use crate::models::{GitHubLanguages, GitHubRepoInfo, LanguageInfo};
