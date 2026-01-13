@@ -146,12 +146,15 @@ jobs:
             # Go to project directory (Assuming ~/Daily-Git-Brief)
             cd ~/Daily-Git-Brief || exit 1
             
+            # Pull latest code (podman-compose.yml updates)
+            git pull origin main
+            
             # Pull new images
-            podman-compose pull
+            BACKEND_IMAGE=$BACKEND_IMAGE FRONTEND_IMAGE=$FRONTEND_IMAGE podman-compose pull
             
             # Restart services
             podman-compose down
-            podman-compose up -d --no-build
+            BACKEND_IMAGE=$BACKEND_IMAGE FRONTEND_IMAGE=$FRONTEND_IMAGE podman-compose up -d --no-build
             
             # Cleanup old images
             podman image prune -f
