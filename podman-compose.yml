@@ -2,8 +2,8 @@ version: "3.8"
 
 services:
   backend:
-    build: ./backend
-    image: localhost/daily-git-brief-backend:latest
+    # build: ./backend
+    image: ${BACKEND_IMAGE:-localhost/daily-git-brief-backend:latest}
     container_name: daily-git-brief-backend
     ports:
       - "8080:8080"
@@ -20,8 +20,8 @@ services:
       start_period: 10s
 
   frontend:
-    build: ./frontend
-    image: localhost/daily-git-brief-frontend:latest
+    # build: ./frontend
+    image: ${FRONTEND_IMAGE:-localhost/daily-git-brief-frontend:latest}
     container_name: daily-git-brief-frontend
     ports:
       - "3000:3000"
