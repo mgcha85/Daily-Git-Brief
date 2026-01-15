@@ -75,5 +75,4 @@ npm run dev
 | POST | `/api/collect` | Trigger manual data collection |
 
 ## License
-
 MIT
