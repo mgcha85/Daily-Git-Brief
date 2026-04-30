@@ -8,7 +8,7 @@ RUN npm install
 COPY frontend/ ./
 RUN npm run build
 
-FROM rust:1.85-slim-bookworm AS backend-builder
+FROM rust:latest AS backend-builder
 
 WORKDIR /app/backend
 
