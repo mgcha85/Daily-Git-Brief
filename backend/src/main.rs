@@ -13,6 +13,7 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 use tower_http::cors::{Any, CorsLayer};
 use tokio::sync::broadcast;
 use std::sync::atomic::AtomicBool;
+use tower_http::services::{ServeDir, ServeFile};
 use tracing::{info, error};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -92,6 +93,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/collect", post(trigger_collect))
         .route("/api/collect/progress", get(sse_progress))
         .layer(cors)
+        .fallback_service(
+            ServeDir::new("/app/static")
+                .not_found_service(ServeFile::new("/app/static/index.html")),
+        )
         .with_state(state);
 
     // Start server

@@ -1,12 +1,11 @@
 version: "3.8"
 
 services:
-  backend:
-    # build: ./backend
-    image: ${BACKEND_IMAGE:-localhost/daily-git-brief-backend:latest}
-    container_name: daily-git-brief-backend
+  app:
+    image: ${APP_IMAGE:-localhost/daily-git-brief:latest}
+    container_name: daily-git-brief
     ports:
-      - "8080:8080"
+      - "${APP_PORT:-8080}:8080"
     env_file:
       - .env
     volumes:
@@ -18,21 +17,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-
-  frontend:
-    # build: ./frontend
-    image: ${FRONTEND_IMAGE:-localhost/daily-git-brief-frontend:latest}
-    container_name: daily-git-brief-frontend
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5173"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-volumes:
-  data:

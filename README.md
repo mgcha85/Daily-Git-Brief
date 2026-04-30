@@ -14,8 +14,8 @@ GitHub 트렌딩 레포지토리를 수집하고, README를 LLM으로 한국어 
 - **Backend**: Rust + Axum
 - **Frontend**: Svelte + Vite
 - **Database**: DuckDB
-- **Deployment**: Podman Compose
-- **CI/CD**: GitHub Container Registry (GHCR)
+- **Deployment**: Single-container Podman
+- **CI/CD**: GitHub Actions + GHCR
 
 ## Quick Start
 
@@ -37,7 +37,7 @@ cp .env.example .env
 # Edit .env with your API keys
 
 # Run with Podman
-podman-compose up --build -d
+podman compose up -d
 ```
 
 ### Development
@@ -63,6 +63,12 @@ npm run dev
 | `DEEPSEEK_API_KEY` | DeepSeek API key | **Required** |
 | `LANGUAGE_THRESHOLD` | Minimum language % to track | `0.2` |
 | `DATABASE_PATH` | DuckDB file path | `./data/daily_git_brief.duckdb` |
+
+## Deployment
+
+- GitHub Actions builds a single image that contains both the Rust backend and the built Svelte frontend.
+- The server only pulls the prebuilt image from GHCR and restarts the container. No server-side build is performed.
+- Local compose defaults to port `8080`. Production deploy sets `APP_PORT=80`.
 
 ## API Endpoints
 
