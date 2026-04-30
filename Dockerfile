@@ -27,7 +27,7 @@ RUN rm -rf src
 COPY backend/src ./src
 RUN touch src/main.rs && cargo build --release
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 RUN apt-get update && apt-get install -y \
     ca-certificates \
