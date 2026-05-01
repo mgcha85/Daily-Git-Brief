@@ -117,7 +117,7 @@ jobs:
           script: |
             REPO_LOWER=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
             export APP_IMAGE=$GHCR_REGISTRY/$REPO_LOWER:latest
-            export APP_PORT=80
+            export APP_PORT=5173
 
             cd ~/Daily-Git-Brief || exit 1
 
