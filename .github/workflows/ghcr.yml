@@ -123,8 +123,8 @@ jobs:
 
             git pull origin main
 
-            echo "${{ secrets.GHCR_TOKEN }}" | sudo -n podman login ghcr.io -u ${{ github.actor }} --password-stdin
-            sudo -n podman rm -f daily-git-brief daily-git-brief-backend daily-git-brief-frontend || true
-            sudo -n podman pull "$APP_IMAGE"
-            APP_IMAGE="$APP_IMAGE" APP_PORT="$APP_PORT" sudo -E podman compose -f podman-compose.yml up -d --force-recreate
-            sudo -n podman image prune -f
+            echo "${{ secrets.GHCR_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+            podman rm -f daily-git-brief daily-git-brief-backend daily-git-brief-frontend || true
+            podman pull "$APP_IMAGE"
+            APP_IMAGE="$APP_IMAGE" APP_PORT="$APP_PORT" podman compose -f podman-compose.yml up -d --force-recreate
+            podman image prune -f
